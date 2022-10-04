@@ -10,18 +10,19 @@
 
 #define pinBicycleMode 4
 #define hallEffectSensor 7
-#define pinBypass 2
+// #define pinBypass 2
 #define pinDownShift 9
 #define pinUpShift 8
 #define pinServo 10
 
-#define none 0x0
-#define up 0x1
-#define down 0x2
+#define NONE 0x0
+#define UP 0x1
+#define DOWN 0x2
 
 const int gears[]=[500,780,1050,1290,1500,1780,2000,2300];
 const int correctAmount = 200;
 const int startingGear = 2;
+const int maxGear = 9;
 
 int Frequency = 60;           // recommended: between 50 (really slow cadence) and 90 (experienced cyclist of the sporty type)
 int ToleranceHigherGear = 5;  // tolerance to move to smaller sprocket // recommended: between 2 and 10
@@ -30,7 +31,8 @@ int ChangeDelayHeavy = 2000;  // recommended between 2500 and 5000
 int ChangeDelayLight = 4700;  // recommended between 2500 and 5000
 int MaxTurns = 5;             // recommended between 1 and 8
 int currentGear = 0;
-int action = 0;
+int action = NONE;
+int pos = 0;
 
 bool mode = AUTOMATIC;
 bool gearChanged = false;
@@ -58,7 +60,7 @@ void setup() {
   servo.attach(pinServo);
   pinMode(pinBicycleMode, INPUT_PULLUP);
   pinMode(hallEffectSensor, INPUT_PULLUP);
-  pinMode(pinBypass, INPUT_PULLUP);
+  // pinMode(pinBypass, INPUT_PULLUP);
   pinMode(pinUpShift,INPUT_PULLUP);
   pinMode(pinDownShift,INPUT_PULLUP);
   attachInterrupt(hallEffectSensor,hallEffectReading, RISING)
@@ -116,21 +118,41 @@ void manual(){
 }
 
 void changeGear(){
-  if(!gearChanged){
+  // there is a changes in gear before hence check if the delay time has exceeded
+  if(gearChanged){
     if(millis()-timeGearChanged>gearChangeInterval){
-      gearChanged=true;
+      gearChanged=false;
     }
+  // there are no changes in gears before or the delay changes in gears has exceeded, therefore allow changes in gear again
   }else{
-
+    if(action==UP){
+      if(currentGear>1){
+        currentGear++;
+        pos = gears[currentGear];
+        servo.writeMicroseconds(pos);
+        gearChanged=true;
+      }
+    }
+    else if (action==DOWN){
+      if(currentGear<maxGear){
+        currentGear--;
+        pos = gears[currentGear];
+        servo.writeMicroseconds(pos);
+        gearChanged=true;
+      }
+    }
+    else if(action==NONE){
+      //do nothing
+    }
   }
 }
 
 void resetSprocket(){
+  pos = gears[startingGear];
   // the position should extended to ensure the chain fits to the gear
-  int extendedPos = gears[startingGear]+correctAmount;
+  int extendedPos = pos+correctAmount;
   servo.writeMicroseconds(extendedPos);
   delay(200);
-  int pos = gears[startingGear];
   servo.writeMicroseconds(pos);
   delay(200);
   currentGear = startingGear;
