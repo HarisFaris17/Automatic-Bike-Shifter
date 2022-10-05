@@ -4,8 +4,10 @@
 #include <time.h>
 #include <Servo.h>
 
-#define AUTOMATIC 0x1
-#define MANUAL 0x0
+#define AUTOMATIC_GRADIENT 0x0
+#define AUTOMATIC_SPEED 0X1
+#define MANUAL 0x2
+
 #define KILO_HERTZ_TO_RPM 60000
 
 #define pinBicycleMode 4
@@ -19,7 +21,7 @@
 #define UP 0x1
 #define DOWN 0x2
 
-const int gears[]=[500,780,1050,1290,1500,1780,2000,2300];
+const int gears[]={500,780,1050,1290,1500,1780,2000,2300};
 const int correctAmount = 200;
 const int startingGear = 2;
 const int maxGear = 9;
@@ -34,9 +36,11 @@ int currentGear = 0;
 int action = NONE;
 int pos = 0;
 
-bool mode = AUTOMATIC;
-bool gearChanged = false;
+int mode = AUTOMATIC_GRADIENT;
 
+bool gearChanged = false;
+bool previousButtonMode = false;
+// bool buttonMode = false;
 bool senseModeChanges = false;
 bool correctingGear = false;
 
@@ -66,7 +70,8 @@ void setup() {
   // pinMode(pinBypass, INPUT_PULLUP);
   pinMode(pinUpShift,INPUT_PULLUP);
   pinMode(pinDownShift,INPUT_PULLUP);
-  attachInterrupt(hallEffectSensor,hallEffectReading, RISING)
+  attachInterrupt(hallEffectSensor,hallEffectReading, FALLING);
+  // attachInterrupt(pinBicycleMode, bicycleModeChanging, FALLING)
   Wire.begin();
   mpu.begin();
   Serial.println(F("Calculating gyro offset, do not move MPU6050"));
@@ -80,14 +85,16 @@ void loop() {
 }
 
 void checkMode() {
-  bool modeNow = digitalRead(pinBicycleMode);
+  bool buttonMode = digitalRead(pinBicycleMode);
 
   // if there is changes in bicycle mode
   if (!senseModeChanges) {
-    if (modeNow == !mode) {
+    if (buttonMode==LOW&&buttonMode!=previousButtonMode) {
+      if(mode==AUTOMATIC_GRADIENT) mode=AUTOMATIC_SPEED;
+      else if(mode==AUTOMATIC_SPEED) mode=MANUAL;
+      else if(mode==MANUAL) mode=AUTOMATIC_GRADIENT;
       senseModeChanges = true;
       timeModeChanges = millis();
-      mode=modeNow;
     }
   }
   // the mode in the next 250ms cant be changed to prevent bouncing, since before there is a change bicycle mode
@@ -96,24 +103,32 @@ void checkMode() {
       senseModeChanges = false;
     }
   }
+  previousButtonMode=buttonMode;
 }
 
 void bicycle(){
   // if mode true, means it is automatic
-  if(mode){
-    automatic();
+  if(mode==AUTOMATIC_GRADIENT){
+    automaticGradient();
   }
   // otherwise, it is manual
-  else{
+  else if(mode==AUTOMATIC_SPEED){
+    automaticSpeed();
+  }
+  else if(mode==MANUAL){
     manual();
   }
 }
 
-void automatic(){
+void automaticGradient(){
   mpu.update();
   pitch=mpu.getAngleX();
   
   }
+}
+
+void automaticSpeed(){
+
 }
 
 void manual(){
@@ -132,8 +147,10 @@ void changeGear(){
     // the gear is not being corrected
     else{
       if(millis()-timeCorrectingGear>correctingGearInterval){
+        servo.writeMicroseconds(pos);
         gearChanged=false;
         correctingGear=false;
+        action = NONE;
       }
     }
   }
