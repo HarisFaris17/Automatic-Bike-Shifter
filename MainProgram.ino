@@ -38,13 +38,16 @@ bool mode = AUTOMATIC;
 bool gearChanged = false;
 
 bool senseModeChanges = false;
+bool correctingGear = false;
 
 const unsigned long debounceInterval = 250;
 const unsigned long gearChangeInterval = 200;
+const unsigned long correctingGearInterval = 200;
 // const unsigned long pitchReadingInterval = 10;
 unsigned long timeModeChanges = 0;
 unsigned long timeHallEffectReadingBefore = 0;
 unsigned long timeGearChanged = 0;
+unsigned long timeCorrectingGear = 0;
 
 float pitch = 0.0f;
 float pedalSpeed = 0.0f;
@@ -120,24 +123,42 @@ void manual(){
 void changeGear(){
   // there is a changes in gear before hence check if the delay time has exceeded
   if(gearChanged){
-    if(millis()-timeGearChanged>gearChangeInterval){
-      gearChanged=false;
+    if(!correctingGear){
+      if(millis()-timeGearChanged>gearChangeInterval){
+        timeCorrectingGear=millis();
+        correctingGear=true;
+      }
     }
+    // the gear is not being corrected
+    else{
+      if(millis()-timeCorrectingGear>correctingGearInterval){
+        gearChanged=false;
+        correctingGear=false;
+      }
+    }
+  }
   // there are no changes in gears before or the delay changes in gears has exceeded, therefore allow changes in gear again
   }else{
     if(action==UP){
-      if(currentGear>1){
+      // if the currect gear is 9 or more, then do nothing
+      if(currentGear<maxGear){
         currentGear++;
-        pos = gears[currentGear];
-        servo.writeMicroseconds(pos);
+        // remember that array starts from 0 and gears start from 1, hence to call the position pwm from specified gear, it should subtracted by 1
+        pos = gears[currentGear-1];
+        int extendedPos = pos + correctAmount;
+        servo.writeMicroseconds(extendedPos);
+        timeGearChanged=millis();
         gearChanged=true;
       }
     }
     else if (action==DOWN){
-      if(currentGear<maxGear){
+      // if the currect gear is 1 or less, then do nothing
+      if(currentGear>1){
         currentGear--;
-        pos = gears[currentGear];
-        servo.writeMicroseconds(pos);
+        pos = gears[currentGear-1];
+        int extendedPos = pos - correctAmount/4;
+        servo.writeMicroseconds(extendedPos);
+        timeGearChanged=millis();
         gearChanged=true;
       }
     }
