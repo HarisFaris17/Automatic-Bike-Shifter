@@ -21,19 +21,18 @@
 #define UP 0x1
 #define DOWN 0x2
 
-const int gears[] = { 500, 780, 1050, 1290, 1500, 1780, 2000, 2300, 2600};
+const int gears[] = { 500, 780, 1050, 1290, 1500, 1780, 2000, 2300, 2600 };
 const int correctAmount = 200;
 const int startingGear = 2;
 const int maxGear = 9;
 
-int Frequency = 60;           // recommended: between 50 (really slow cadence) and 90 (experienced cyclist of the sporty type)
-int ToleranceHigherGear = 5;  // tolerance to move to smaller sprocket // recommended: between 2 and 10
-int ToleranceLowerGear = 6;   // tolerance to move to larger sprocket // recommended: between 4 and 10
-int ChangeDelayHeavy = 2000;  // recommended between 2500 and 5000
-int ChangeDelayLight = 4700;  // recommended between 2500 and 5000
-int MaxTurns = 5;             // recommended between 1 and 8
+int frequencyTarget = 60;           // recommended: between 50 (really slow cadence) and 90 (experienced cyclist of the sporty type)
+int toleranceHigherGear = 5;  // tolerance to move to smaller sprocket // recommended: between 2 and 10
+int toleranceLowerGear = 6;   // tolerance to move to larger sprocket // recommended: between 4 and 10
+int changeDelayHeavy = 2000;  // recommended between 2500 and 5000
+int changeDelayLight = 4700;  // recommended between 2500 and 5000
+// int naxTurns = 5;             // recommended between 1 and 8
 int currentGear = 0;
-int previousFlooredGradient = 0;
 int action = NONE;
 int pos = 0;
 
@@ -62,6 +61,7 @@ MPU6050 mpu(Wire);
 
 Servo servo;
 
+void hallEffectReading();
 
 void setup() {
   Serial.begin(115200);
@@ -98,7 +98,7 @@ void checkMode() {
       timeModeChanges = millis();
     }
   }
-  // the mode in the next 250ms cant be changed to prevent bouncing, since before there is a change bicycle mode
+  // the mode in the next 250ms cant be changed to prevent bouncing, since before there is a change in bicycle mode 
   else {
     if (millis() - timeModeChanges > debounceInterval) {
       senseModeChanges = false;
@@ -110,11 +110,9 @@ void checkMode() {
 void bicycle() {
   // if the gear is not changing
   if (!gearChanging) {
-    // if mode true, means it is automatic
     if (mode == AUTOMATIC_GRADIENT) {
       automaticGradient();
     }
-    // otherwise, it is manual
     else if (mode == AUTOMATIC_SPEED) {
       automaticSpeed();
     } 
@@ -129,9 +127,9 @@ void automaticGradient() {
   float gradient = mpu.getAngleX();
   int targetGearByGradient = getGearByGradient((int)gradient);
   int differenceGear = currentGear - targetGearByGradient;
-  if (differenceGradient > 1) action = DOWN; 
+  if (differenceGear > 1) action = DOWN;
   else if (differenceGear < -1) action = UP;
-  else if(differenceGear==0) action = NONE;
+  else if (differenceGear == 0) action = NONE;
 }
 
 int getGearByGradient(int flooredGradient) {
@@ -139,7 +137,9 @@ int getGearByGradient(int flooredGradient) {
 }
 
 void automaticSpeed() {
-
+  if(pedalSpeed>frequencyTarget+toleranceHigherGear) action=UP;
+  else if(pedalSpeed<frequencyTarget-toleranceLowerGear) action=DOWN;
+  else action=NONE;
 }
 
 void manual() {
@@ -165,33 +165,33 @@ void changeGear() {
     }
   }
   // there are no changes in gears before or the delay changes in gears has exceeded, therefore allow changes in gear again
-}
-else {
-  if (action == UP) {
-    // if the currect gear is 9 or more, then do nothing
-    if (currentGear < maxGear) {
-      currentGear++;
-      // remember that array starts from 0 and gears start from 1, hence to call the position pwm from specified gear, it should subtracted by 1
-      pos = gears[currentGear - 1];
-      int extendedPos = pos + correctAmount;
-      servo.writeMicroseconds(extendedPos);
-      timeGearChanged = millis();
-      gearChanging = true;
+
+  else {
+    if (action == UP) {
+      // if the currect gear is 9 or more, then do nothing
+      if (currentGear < maxGear) {
+        currentGear++;
+        // remember that array starts from 0 and gears start from 1, hence to call the position pwm from specified gear, it should subtracted by 1
+        pos = gears[currentGear - 1];
+        int extendedPos = pos + correctAmount;
+        servo.writeMicroseconds(extendedPos);
+        timeGearChanged = millis();
+        gearChanging = true;
+      }
+    } else if (action == DOWN) {
+      // if the currect gear is 1 or less, then do nothing
+      if (currentGear > 1) {
+        currentGear--;
+        pos = gears[currentGear - 1];
+        int extendedPos = pos - correctAmount / 4;
+        servo.writeMicroseconds(extendedPos);
+        timeGearChanged = millis();
+        gearChanging = true;
+      }
+    } else if (action == NONE) {
+      //do nothing
     }
-  } else if (action == DOWN) {
-    // if the currect gear is 1 or less, then do nothing
-    if (currentGear > 1) {
-      currentGear--;
-      pos = gears[currentGear - 1];
-      int extendedPos = pos - correctAmount / 4;
-      servo.writeMicroseconds(extendedPos);
-      timeGearChanged = millis();
-      gearChanging = true;
-    }
-  } else if (action == NONE) {
-    //do nothing
   }
-}
 }
 
 void resetSprocket() {
