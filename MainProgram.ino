@@ -26,7 +26,7 @@ const int correctAmount = 200;
 const int startingGear = 2;
 const int maxGear = 9;
 
-int frequencyTarget = 60;           // recommended: between 50 (really slow cadence) and 90 (experienced cyclist of the sporty type)
+int frequencyTarget = 60;     // recommended: between 50 (really slow cadence) and 90 (experienced cyclist of the sporty type)
 int toleranceHigherGear = 5;  // tolerance to move to smaller sprocket // recommended: between 2 and 10
 int toleranceLowerGear = 6;   // tolerance to move to larger sprocket // recommended: between 4 and 10
 int changeDelayHeavy = 2000;  // recommended between 2500 and 5000
@@ -40,9 +40,13 @@ int mode = AUTOMATIC_GRADIENT;
 
 bool gearChanging = false;
 bool previousButtonMode = false;
+bool previousUpShiftButton = false;
+bool previousDownShiftButton = false;
 // bool buttonMode = false;
 bool senseModeChanges = false;
 bool correctingGear = false;
+bool senseUpShiftButtonChanges = false;
+bool senseDownShiftButtonChanges = false;
 
 const unsigned long debounceInterval = 250;
 const unsigned long gearChangeInterval = 200;
@@ -52,6 +56,7 @@ unsigned long timeModeChanges = 0;
 unsigned long timeHallEffectReadingBefore = 0;
 unsigned long timeGearChanged = 0;
 unsigned long timeCorrectingGear = 0;
+unsigned long timeUpDownShiftButton = 0;
 
 float gradient = 0.0f;
 float pedalSpeed = 0.0f;
@@ -98,7 +103,7 @@ void checkMode() {
       timeModeChanges = millis();
     }
   }
-  // the mode in the next 250ms cant be changed to prevent bouncing, since before there is a change in bicycle mode 
+  // the mode in the next 250ms cant be changed to prevent bouncing, since before there is a change in bicycle mode
   else {
     if (millis() - timeModeChanges > debounceInterval) {
       senseModeChanges = false;
@@ -112,11 +117,9 @@ void bicycle() {
   if (!gearChanging) {
     if (mode == AUTOMATIC_GRADIENT) {
       automaticGradient();
-    }
-    else if (mode == AUTOMATIC_SPEED) {
+    } else if (mode == AUTOMATIC_SPEED) {
       automaticSpeed();
-    } 
-    else if (mode == MANUAL) {
+    } else if (mode == MANUAL) {
       manual();
     }
   }
@@ -137,12 +140,34 @@ int getGearByGradient(int flooredGradient) {
 }
 
 void automaticSpeed() {
-  if(pedalSpeed>frequencyTarget+toleranceHigherGear) action=UP;
-  else if(pedalSpeed<frequencyTarget-toleranceLowerGear) action=DOWN;
-  else action=NONE;
+  if (pedalSpeed > frequencyTarget + toleranceHigherGear) action = UP;
+  else if (pedalSpeed < frequencyTarget - toleranceLowerGear) action = DOWN;
+  else action = NONE;
 }
 
 void manual() {
+  // normal state is HIGH
+  bool buttonUpShift = digitalRead(pinUpShift);
+  bool buttonDownShift = digitalRead(pinDownShift);
+  if (!senseDownShiftButtonChanges&&!senseUpShiftButtonChanges) {
+    if (buttonUpShift == LOW && buttonUpShift != previousUpShiftButton) {
+      senseUpShiftButtonChanges = true;
+      timeUpDownShiftButton = millis();
+    }
+    else if(buttonDownShift == LOW && buttonDownShift != previousDownShiftButton){
+      senseDownShiftButtonChanges = true;
+      timeUpDownShiftButton = millis();
+    }
+  }
+  // the upshift and downshift in the next 250ms cant be interrupted to prevent bouncing
+  else {
+    if (millis() - timeUpDownShiftButton > debounceInterval) {
+      senseDownShiftButtonChanges = false;
+      senseUpShiftButtonChanges = false;
+    }
+  }
+  previousDownShiftButton = buttonDownShift;
+  previousUpShiftButton = buttonUpShift;
 }
 
 void changeGear() {
