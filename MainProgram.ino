@@ -13,8 +13,8 @@
 #define pinBicycleMode 4
 #define hallEffectSensor 7
 // #define pinBypass 2
-#define pinDownShift 9
-#define pinUpShift 8
+#define pinDownShift 2
+#define pinUpShift 3
 #define pinServo 10
 
 #define NONE 0x0
@@ -67,6 +67,7 @@ MPU6050 mpu(Wire);
 Servo servo;
 
 void hallEffectReading();
+void resetSprocket();
 
 void setup() {
   Serial.begin(115200);
@@ -82,6 +83,7 @@ void setup() {
   mpu.begin();
   Serial.println(F("Calculating gyro offset, do not move MPU6050"));
   mpu.calcGyroOffsets();  // This does the calibration
+  resetSprocket();
 }
 
 void loop() {
@@ -230,7 +232,7 @@ void resetSprocket() {
   currentGear = startingGear;
 }
 
-// this function will be called when the there is a rising changes in hall effect sensor
+// this function will be called when the there is a falling changes in hall effect sensor
 void hallEffectReading() {
   unsigned long timeHallEffectReadingNow = millis();
   unsigned long intervalTwoHallEffectReading = timeHallEffectReadingNow - timeHallEffectReadingBefore;
